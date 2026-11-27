@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>轻跳 LightSkip — 不联网、克制的安卓开屏跳过工具</title>
+<title>轻跳 LightSkip — 仅更新时联网、克制的安卓开屏跳过工具</title>
 <style>
   :root {
     --bg: #FAF9F6;
@@ -228,7 +228,7 @@
     <a class="brand" href="#top">
       <span class="brand-mark">轻</span>
       <span class="brand-name">轻跳 LightSkip</span>
-      <span class="brand-ver">v0.2.0</span>
+      <span class="brand-ver">v1.0.0</span>
     </a>
     <nav class="nav-links">
       <a href="#screens">真机界面</a>
@@ -242,17 +242,17 @@
 <main id="top">
   <section class="hero">
     <div>
-      <div class="hero-badge"><span class="dot"></span> 零网络权限 · 纯原生 Java · 仅自用</div>
-      <h1>不联网、克制的<br /><mark>开屏跳过</mark>工具。</h1>
+      <div class="hero-badge"><span class="dot"></span> 仅检查更新时联网 · 纯原生 Java · 仅自用</div>
+      <h1>本地运行、克制的<br /><mark>开屏跳过</mark>工具。</h1>
       <p class="hero-sub">
-        面向日常安卓自用的轻量开屏广告跳过应用。无第三方 SDK、无联网权限、默认仅在勾选应用中生效，并自动避开支付与银行界面。
+        面向日常安卓自用的轻量开屏广告跳过应用。无第三方 SDK、日常跳广告完全离线（仅检查更新时联网，不上传任何本机数据），默认仅在勾选应用中生效，并自动避开支付与银行界面。
       </p>
       <div class="hero-actions">
         <a class="btn btn-primary" href="#build">本地构建 APK</a>
         <a class="btn btn-secondary" href="#screens">查看小米 15 真机实拍</a>
       </div>
       <div class="trust-row">
-        <span><b>不联网</b> · 无 INTERNET 权限</span>
+        <span><b>仅更新时联网</b> · 日常离线不上传数据</span>
         <span><b>白名单默认</b> · 仅勾选应用生效</span>
         <span><b>Android 8.0+</b> · 适配 HyperOS 等 ROM</span>
       </div>
@@ -304,9 +304,9 @@
     </div>
     <div class="spec-grid">
       <div class="spec-card">
-        <span class="spec-tag">ZERO INTERNET</span>
-        <h3>不声明任何联网权限</h3>
-        <p>Manifest 中完全不含 <code>INTERNET</code>，且设置 <code>allowBackup="false"</code>。所有规则识别均在设备本地实时完成。</p>
+        <span class="spec-tag">LOCAL-FIRST · SHA-256</span>
+        <h3>仅检查更新时联网</h3>
+        <p>日常跳广告完全离线，无障碍服务绝不联网；仅在应用内检查更新与下载新版安装包时联网，强制 HTTPS 与 SHA-256 校验，且设置 <code>allowBackup="false"</code>。</p>
       </div>
       <div class="spec-card">
         <span class="spec-tag">25 BUILT-IN + RECORDER</span>
@@ -325,10 +325,12 @@
     <div class="code-panel">
       <div>
         <h3>最小权限声明（AndroidManifest.xml）</h3>
-        <p>全应用仅声明两项必要权限与一项无障碍服务，无网络、无定位、无存储读取。</p>
+        <p>全应用仅声明必要权限与一项无障碍服务，无定位、无通讯录、无外部存储读取；联网仅用于应用内更新。</p>
         <pre>&lt;uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"/&gt;
 &lt;uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/&gt;
-&lt;!-- 无 INTERNET 权限 · allowBackup="false" --&gt;</pre>
+&lt;uses-permission android:name="android.permission.INTERNET"/&gt;
+&lt;uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/&gt;
+&lt;!-- 仅检查更新时联网 · allowBackup="false" --&gt;</pre>
       </div>
       <div>
         <h3>本地测试与打包</h3>
@@ -343,7 +345,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk</pre>
 
 <footer>
   <span>轻跳 LightSkip · 仅限个人学习研究与亲友小范围自用，不上架应用商店、不商用。</span>
-  <span>作者：<a href="https://github.com/Qiuizi" target="_blank" rel="noopener">Qiuizi（唐梓棋）</a></span>
+  <span>作者：<a href="https://github.com/Qiuizi" target="_blank" rel="noopener">Qiuizi</a></span>
 </footer>
 
 <script>

@@ -16,10 +16,11 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
+import java.io.File;
 import java.util.Set;
 
 /**
- * V5 首页：上半屏动态色场（缺权限 / 只缺保活 / 全就绪 / 已暂停）+ 三句信任说明 + 三组入口。
+ * V5 首页：上半屏动态色场（缺权限 / 只缺保活 / 全就绪 / 已暂停）+ 信任说明 + 可选更新提示条 + 三组入口。
  * onResume 只读内存里的 Scope 和 AppCatalog 快照，不扫包、不重建视图。
  */
 public final class MainActivity extends Activity implements AppCatalog.Listener {
@@ -45,9 +46,23 @@ public final class MainActivity extends Activity implements AppCatalog.Listener 
     private RockerView rocker;
 
     private Ui.TrustRow trustScope;
+    private LinearLayout updateBanner;
+    private TextView updateTitle;
+    private TextView updateSub;
+    private TextView updateAction;
+    private UpdateInfo availableUpdate;
+    private AppUpdater.DownloadHandle downloadHandle;
+    private File pendingInstallApk;
+    private boolean silentCheckStarted;
+    private boolean updateDownloading;
+    private int updatePercent;
+    private String updateErrorMsg;
+    private String updateFallbackUrl = UpdateInfo.DEFAULT_RELEASE_PAGE;
+
     private Ui.Item scopeItem;
     private Ui.Item recordItem;
     private Ui.Item permItem;
+    private Ui.Item aboutItem;
 
     @Override
     public void onCreate(Bundle state) {
@@ -71,6 +86,7 @@ public final class MainActivity extends Activity implements AppCatalog.Listener 
         Ui.insetTop(field);
         Ui.insetBottom(page);
         buildTrust(page);
+        buildUpdateBanner(page);
         buildGroups(page);
 
         TextView foot = ui.text("轻跳 v" + Ui.version(this), 12, Ui.INK_3);
@@ -209,7 +225,7 @@ public final class MainActivity extends Activity implements AppCatalog.Listener 
         }
     }
 
-    // ---- 信任三行 ----
+    // ---- 信任行 ----
 
     private void buildTrust(LinearLayout page) {
         LinearLayout box = ui.frame(true);
@@ -239,11 +255,211 @@ public final class MainActivity extends Activity implements AppCatalog.Listener 
             trustScope.setWarn(true);
             ((Glyph) trustScope.icon.getDrawable()).setColor(Ui.WARN);
         } else {
-            b.append(Ui.boldThen("不联网 · 仅勾选 " + picked + " 个", " · 支付银行不点", Ui.INK_2));
+            b.append(Ui.boldThen("仅更新联网 · 仅勾选 " + picked + " 个", " · 支付银行不点", Ui.INK_2));
             trustScope.setWarn(false);
             ((Glyph) trustScope.icon.getDrawable()).setColor(Ui.INK);
         }
         trustScope.text.setText(b);
+    }
+
+    // ---- 轻量更新提示条（仅发现新版本时显示） ----
+
+    private void buildUpdateBanner(LinearLayout page) {
+        updateBanner = ui.frame(false);
+        updateBanner.setBackground(ui.outlined(Ui.TAG_BG, 0xFFB8E6CF, 18));
+        ui.pad(updateBanner, 14, 12, 12, 12);
+        updateBanner.setVisibility(View.GONE);
+
+        FrameLayout iconBox = new FrameLayout(this);
+        iconBox.setBackground(ui.oval(Ui.CARD));
+        ImageView icon = new ImageView(this);
+        icon.setImageDrawable(new Glyph(Glyph.DOWNLOAD, Ui.TAG_INK, ui.dp(1.8f)));
+        iconBox.addView(icon, new FrameLayout.LayoutParams(ui.dp(16), ui.dp(16), Gravity.CENTER));
+        ui.fixed(updateBanner, iconBox, 30, 30, 0);
+
+        LinearLayout col = ui.frame(true);
+        updateTitle = ui.bold("", 14.5f, Ui.INK);
+        updateSub = ui.text("", 12, Ui.TAG_INK);
+        updateSub.setLineSpacing(0, 1.2f);
+        col.addView(updateTitle);
+        LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        sp.topMargin = ui.dp(2);
+        col.addView(updateSub, sp);
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        cp.leftMargin = ui.dp(10);
+        updateBanner.addView(col, cp);
+
+        updateAction = ui.pill("一键升级", Ui.INK, Ui.WHITE, new View.OnClickListener() {
+            @Override public void onClick(View v) { onUpdateBannerAction(); }
+        });
+        ui.wrap(updateBanner, updateAction, 8);
+        updateBanner.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) { onUpdateBannerAction(); }
+        });
+
+        ui.add(page, updateBanner, 8, 16, 0);
+    }
+
+    private void onUpdateBannerAction() {
+        if (updateDownloading) {
+            if (downloadHandle != null) downloadHandle.cancel();
+            return;
+        }
+        if (pendingInstallApk != null) {
+            if (AppUpdater.canInstallPackages(this)) {
+                File f = pendingInstallApk;
+                pendingInstallApk = null;
+                AppUpdater.installApk(this, f);
+                renderUpdateBanner();
+            } else {
+                promptInstallPermission();
+            }
+            return;
+        }
+        if (updateErrorMsg != null && !updateErrorMsg.isEmpty()) {
+            ui.confirm(
+                "升级未完成",
+                updateErrorMsg + "\n\n你可以改用浏览器打开 GitHub Releases 手动下载。",
+                "浏览器打开",
+                false,
+                new Runnable() {
+                    @Override public void run() { AppUpdater.openReleasePage(MainActivity.this, updateFallbackUrl); }
+                }
+            ).show();
+            return;
+        }
+        if (availableUpdate != null) {
+            startBannerDownload(availableUpdate);
+        }
+    }
+
+    private void startBannerDownload(final UpdateInfo info) {
+        updateDownloading = true;
+        updatePercent = 0;
+        updateErrorMsg = null;
+        updateFallbackUrl = info.releasePageUrl;
+        renderUpdateBanner();
+        downloadHandle = AppUpdater.downloadAndInstall(this, info, new AppUpdater.DownloadCallback() {
+            @Override
+            public void onProgress(long bytesRead, long totalBytes, int percent) {
+                if (isFinishing() || isDestroyed()) return;
+                updatePercent = Math.max(0, Math.min(100, percent));
+                renderUpdateBanner();
+            }
+
+            @Override
+            public void onNeedInstallPermission(File apkFile) {
+                if (isFinishing() || isDestroyed()) return;
+                downloadHandle = null;
+                updateDownloading = false;
+                pendingInstallApk = apkFile;
+                renderUpdateBanner();
+                promptInstallPermission();
+            }
+
+            @Override
+            public void onReadyToInstall(File apkFile) {
+                if (isFinishing() || isDestroyed()) return;
+                downloadHandle = null;
+                updateDownloading = false;
+                pendingInstallApk = null;
+                renderUpdateBanner();
+            }
+
+            @Override
+            public void onCancelled() {
+                if (isFinishing() || isDestroyed()) return;
+                downloadHandle = null;
+                updateDownloading = false;
+                renderUpdateBanner();
+                Toast.makeText(MainActivity.this, "已取消下载", Toast.LENGTH_SHORT).show();
+            }
+
+            @Override
+            public void onError(String message, String fallbackReleasePageUrl) {
+                if (isFinishing() || isDestroyed()) return;
+                downloadHandle = null;
+                updateDownloading = false;
+                updateErrorMsg = message == null || message.isEmpty() ? "下载失败" : message;
+                if (fallbackReleasePageUrl != null && !fallbackReleasePageUrl.isEmpty()) {
+                    updateFallbackUrl = fallbackReleasePageUrl;
+                }
+                renderUpdateBanner();
+            }
+        });
+    }
+
+    private void promptInstallPermission() {
+        ui.confirm(
+            "允许安装未知应用",
+            "安装包已通过 SHA-256 校验。请在系统设置里允许「轻跳」安装应用，返回后会自动拉起安装。",
+            "去授权",
+            false,
+            new Runnable() {
+                @Override public void run() {
+                    if (!AppUpdater.openInstallPermissionSettings(MainActivity.this)) {
+                        Toast.makeText(MainActivity.this, "无法打开系统安装权限页", Toast.LENGTH_SHORT).show();
+                    }
+                }
+            }
+        ).show();
+    }
+
+    private void renderUpdateBanner() {
+        if (availableUpdate == null) {
+            updateBanner.setVisibility(View.GONE);
+            return;
+        }
+        updateBanner.setVisibility(View.VISIBLE);
+        String ver = availableUpdate.versionName.isEmpty() ? "新版本" : "v" + availableUpdate.versionName;
+        if (updateDownloading) {
+            updateTitle.setText("正在下载 " + ver + (updatePercent > 0 ? " · " + updatePercent + "%" : ""));
+            updateSub.setText("下载完成后自动校验 SHA-256");
+            updateAction.setText("取消");
+        } else if (pendingInstallApk != null) {
+            updateTitle.setText(ver + " 已就绪");
+            updateSub.setText("请允许「安装未知应用」后继续");
+            updateAction.setText("去授权");
+        } else if (updateErrorMsg != null && !updateErrorMsg.isEmpty()) {
+            updateTitle.setText("有新版本 " + ver);
+            updateSub.setText(updateErrorMsg);
+            updateAction.setText("查看");
+        } else {
+            updateTitle.setText("有新版本 " + ver);
+            updateSub.setText("校验 SHA-256 后本地安装");
+            updateAction.setText("一键升级");
+        }
+        if (aboutItem != null) {
+            TextView av = (TextView) aboutItem.trailing;
+            av.setText("有新版本");
+            av.setTextColor(Ui.TAG_INK);
+            av.setTypeface(Ui.BOLD);
+        }
+    }
+
+    private void maybeCheckUpdateSilently() {
+        if (silentCheckStarted) return;
+        silentCheckStarted = true;
+        AppUpdater.checkIfDue(this, new AppUpdater.CheckCallback() {
+            @Override
+            public void onUpdateAvailable(UpdateInfo info) {
+                if (isFinishing() || isDestroyed()) return;
+                availableUpdate = info;
+                updateFallbackUrl = info.releasePageUrl;
+                renderUpdateBanner();
+            }
+
+            @Override
+            public void onUpToDate(int currentVersionCode, String currentVersionName) {
+                // 静默检查已是最新，不打扰
+            }
+
+            @Override
+            public void onError(String message, String fallbackReleasePageUrl) {
+                // 静默检查失败静默忽略，不打扰
+            }
+        });
     }
 
     // ---- 入口分组 ----
@@ -263,7 +479,8 @@ public final class MainActivity extends Activity implements AppCatalog.Listener 
         permItem = ui.item(Glyph.SHIELD, "权限与保活", null, ui.value(""), go(PageActivity.PERM));
         more.addView(permItem.row);
         more.addView(ui.item(Glyph.DOTS, "更多", null, ui.value("测试 · 记录"), go(PageActivity.LAB)).row);
-        more.addView(ui.item(Glyph.INFO, "关于与隐私", null, ui.value("不联网"), go(PageActivity.ABOUT)).row);
+        aboutItem = ui.item(Glyph.INFO, "关于与隐私", null, ui.value("仅更新联网"), go(PageActivity.ABOUT));
+        more.addView(aboutItem.row);
     }
 
     private View.OnClickListener go(final String page) {
@@ -440,12 +657,28 @@ public final class MainActivity extends Activity implements AppCatalog.Listener 
         catalog.addListener(this);
         catalog.ensureLoaded();
         refresh(true);
+        if (pendingInstallApk != null && AppUpdater.canInstallPackages(this)) {
+            File f = pendingInstallApk;
+            pendingInstallApk = null;
+            renderUpdateBanner();
+            AppUpdater.installApk(this, f);
+        }
+        maybeCheckUpdateSilently();
     }
 
     @Override
     protected void onPause() {
         super.onPause();
         catalog.removeListener(this);
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (downloadHandle != null) {
+            downloadHandle.cancel();
+            downloadHandle = null;
+        }
+        super.onDestroy();
     }
 
     @Override

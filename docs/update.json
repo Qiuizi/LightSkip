@@ -1,0 +1,10 @@
+{
+    "versionCode":  100,
+    "mirrorApkUrl":  "",
+    "apkUrl":  "https://github.com/Qiuizi/LightSkip/releases/download/v1.0.0/LightSkip-v1.0.0.apk",
+    "sizeBytes":  94684,
+    "notes":  "LightSkip v1.0.0 正式版：新增应用内一键检查更新（HTTPS + SHA-256 校验）、息屏自动休眠与亮屏解锁重开窗口、通用规则文本快路径与视频「跳过片头/片尾」防误触过滤、通知栏快捷磁贴一键暂停/恢复，以及 R8 瘦身正式签名包。",
+    "versionName":  "1.0.0",
+    "releasePageUrl":  "https://github.com/Qiuizi/LightSkip/releases/tag/v1.0.0",
+    "sha256":  "484feb967ab8b16625f73fe3ff16db06b882c83454b4be8406e804dc5847d5e9"
+}

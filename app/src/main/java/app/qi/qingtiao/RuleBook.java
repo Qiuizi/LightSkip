@@ -224,10 +224,22 @@ final class RuleBook {
             || name.contains("loading") || name.contains("adactivity");
     }
 
+    private static final Pattern SKIP_EXCLUDED = Pattern.compile(
+        "(跳过片头|跳过片尾|跳过片|跳过剧情|跳过动画|跳过引导|跳过此步|跳过绑定|跳过登录|跳过验证|跳過片頭|跳過片尾|skip\\s*intro|skip\\s*outro|skip\\s*recap|skip\\s*tutorial)",
+        Pattern.CASE_INSENSITIVE
+    );
+
+    static boolean isExcludedSkipText(String text) {
+        if (text == null) return false;
+        String trimmed = text.trim();
+        return !trimmed.isEmpty() && SKIP_EXCLUDED.matcher(trimmed).find();
+    }
+
     static boolean skipText(String text) {
         if (text == null) return false;
         String trimmed = text.trim();
-        return !trimmed.isEmpty() && trimmed.length() <= 14 && SKIP.matcher(trimmed).matches();
+        if (trimmed.isEmpty() || trimmed.length() > 14 || isExcludedSkipText(trimmed)) return false;
+        return SKIP.matcher(trimmed).matches();
     }
 
     static boolean adText(String s) {

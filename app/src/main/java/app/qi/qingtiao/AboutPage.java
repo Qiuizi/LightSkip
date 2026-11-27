@@ -1,14 +1,26 @@
 package app.qi.qingtiao;
 
 import android.view.View;
-import android.view.ViewGroup;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import java.io.File;
+import java.util.Locale;
 import java.util.Set;
 
-/** 关于与隐私：「本机说明」规格表，每一行都和程序实际行为一致；版本号；带确认的清除跳过记录。 */
+/** 关于与隐私：「本机说明」规格表，每一行都和程序实际行为一致；版本与检查更新；带确认的清除跳过记录。 */
 final class AboutPage extends PageActivity.Page {
+    private enum UpdateState { IDLE, CHECKING, UP_TO_DATE, AVAILABLE, DOWNLOADING, NEED_PERM, ERROR }
+
     private LinearLayout table;
+    private Ui.Item updateItem;
+    private UpdateState updateState = UpdateState.IDLE;
+    private UpdateInfo availableUpdate;
+    private AppUpdater.DownloadHandle downloadHandle;
+    private File pendingInstallApk;
+    private String lastFallbackUrl = UpdateInfo.DEFAULT_RELEASE_PAGE;
+    private String lastErrorMsg = "";
+    private int downloadPercent;
+    private boolean destroyed;
 
     AboutPage(PageActivity a) { super(a); }
 
@@ -42,9 +54,17 @@ final class AboutPage extends PageActivity.Page {
         ui.add(body, card, 16, 16, 0);
         footnote(body, "*开屏广告一般 3–5 秒，这里取 3 秒，宁可少算。", 10);
 
-        LinearLayout g = ui.addGroup(body, "关于");
-        g.addView(ui.item(Glyph.PHONE, "版本", "自用和朋友小范围使用，不上架",
+        LinearLayout g = ui.addGroup(body, "关于与更新");
+        g.addView(ui.item(Glyph.PHONE, "当前版本", "自用和朋友小范围使用，不上架",
             ui.value("v" + Ui.version(a)), null).row);
+
+        updateItem = ui.item(Glyph.DOWNLOAD, "检查更新", "当前 v" + Ui.version(a) + " · 仅更新时联网",
+            ui.value("检查"), new View.OnClickListener() {
+                @Override public void onClick(View v) { onUpdateRowClick(); }
+            });
+        g.addView(updateItem.row);
+        renderUpdateRow();
+
         Ui.Item clear = ui.item(Glyph.TRASH, "清除跳过记录", "今日和累计次数归零，最近跳过记录一起清掉", null,
             new View.OnClickListener() {
                 @Override public void onClick(View v) { confirmClear(); }
@@ -57,9 +77,228 @@ final class AboutPage extends PageActivity.Page {
         return root(body);
     }
 
+    private void onUpdateRowClick() {
+        switch (updateState) {
+            case CHECKING:
+                return;
+            case DOWNLOADING:
+                if (downloadHandle != null) downloadHandle.cancel();
+                return;
+            case AVAILABLE:
+                if (availableUpdate != null) startDownload(availableUpdate);
+                else triggerCheck();
+                return;
+            case NEED_PERM:
+                if (pendingInstallApk != null && AppUpdater.canInstallPackages(a)) {
+                    File f = pendingInstallApk;
+                    pendingInstallApk = null;
+                    AppUpdater.installApk(a, f);
+                    updateState = UpdateState.AVAILABLE;
+                    renderUpdateRow();
+                } else {
+                    promptInstallPermission();
+                }
+                return;
+            case ERROR:
+                showErrorSheet();
+                return;
+            default:
+                triggerCheck();
+                return;
+        }
+    }
+
+    private void triggerCheck() {
+        updateState = UpdateState.CHECKING;
+        lastErrorMsg = "";
+        renderUpdateRow();
+        AppUpdater.checkNow(a, new AppUpdater.CheckCallback() {
+            @Override
+            public void onUpdateAvailable(UpdateInfo info) {
+                if (destroyed) return;
+                availableUpdate = info;
+                lastFallbackUrl = info.releasePageUrl;
+                updateState = UpdateState.AVAILABLE;
+                renderUpdateRow();
+            }
+
+            @Override
+            public void onUpToDate(int currentVersionCode, String currentVersionName) {
+                if (destroyed) return;
+                availableUpdate = null;
+                updateState = UpdateState.UP_TO_DATE;
+                renderUpdateRow();
+            }
+
+            @Override
+            public void onError(String message, String fallbackReleasePageUrl) {
+                if (destroyed) return;
+                lastErrorMsg = message == null || message.isEmpty() ? "检查更新失败" : message;
+                if (fallbackReleasePageUrl != null && !fallbackReleasePageUrl.isEmpty()) {
+                    lastFallbackUrl = fallbackReleasePageUrl;
+                }
+                updateState = UpdateState.ERROR;
+                renderUpdateRow();
+            }
+        });
+    }
+
+    private void startDownload(final UpdateInfo info) {
+        updateState = UpdateState.DOWNLOADING;
+        downloadPercent = 0;
+        lastErrorMsg = "";
+        lastFallbackUrl = info.releasePageUrl;
+        renderUpdateRow();
+        downloadHandle = AppUpdater.downloadAndInstall(a, info, new AppUpdater.DownloadCallback() {
+            @Override
+            public void onProgress(long bytesRead, long totalBytes, int percent) {
+                if (destroyed) return;
+                downloadPercent = Math.max(0, Math.min(100, percent));
+                renderUpdateRow();
+            }
+
+            @Override
+            public void onNeedInstallPermission(File apkFile) {
+                if (destroyed) return;
+                downloadHandle = null;
+                pendingInstallApk = apkFile;
+                updateState = UpdateState.NEED_PERM;
+                renderUpdateRow();
+                promptInstallPermission();
+            }
+
+            @Override
+            public void onReadyToInstall(File apkFile) {
+                if (destroyed) return;
+                downloadHandle = null;
+                pendingInstallApk = null;
+                updateState = UpdateState.AVAILABLE;
+                renderUpdateRow();
+            }
+
+            @Override
+            public void onCancelled() {
+                if (destroyed) return;
+                downloadHandle = null;
+                updateState = availableUpdate != null ? UpdateState.AVAILABLE : UpdateState.IDLE;
+                renderUpdateRow();
+                toast("已取消下载");
+            }
+
+            @Override
+            public void onError(String message, String fallbackReleasePageUrl) {
+                if (destroyed) return;
+                downloadHandle = null;
+                lastErrorMsg = message == null || message.isEmpty() ? "下载失败" : message;
+                if (fallbackReleasePageUrl != null && !fallbackReleasePageUrl.isEmpty()) {
+                    lastFallbackUrl = fallbackReleasePageUrl;
+                }
+                updateState = UpdateState.ERROR;
+                renderUpdateRow();
+            }
+        });
+    }
+
+    private void promptInstallPermission() {
+        ui.confirm(
+            "允许安装未知应用",
+            "安装包已通过 SHA-256 校验。请在系统设置里允许「轻跳」安装应用，返回后会自动拉起安装。",
+            "去授权",
+            false,
+            new Runnable() {
+                @Override public void run() {
+                    if (!AppUpdater.openInstallPermissionSettings(a)) {
+                        toast("无法打开系统安装权限页");
+                    }
+                }
+            }
+        ).show();
+    }
+
+    private void showErrorSheet() {
+        String msg = lastErrorMsg.isEmpty() ? "连接更新源失败，可以重试或直接用浏览器打开发布页。" : lastErrorMsg;
+        ui.confirm(
+            "更新未完成",
+            msg + "\n\n点「浏览器打开」将跳转到 GitHub Releases 页面手动下载。",
+            "浏览器打开",
+            false,
+            new Runnable() {
+                @Override public void run() {
+                    AppUpdater.openReleasePage(a, lastFallbackUrl);
+                }
+            }
+        ).show();
+    }
+
+    private void renderUpdateRow() {
+        if (updateItem == null) return;
+        TextView tv = (TextView) updateItem.trailing;
+        updateItem.desc.setVisibility(View.VISIBLE);
+        switch (updateState) {
+            case CHECKING:
+                updateItem.desc.setText("正在连接 GitHub Releases 检查新版本…");
+                tv.setText("检查中…");
+                tv.setTextColor(Ui.INK_3);
+                tv.setTypeface(null);
+                break;
+            case UP_TO_DATE:
+                updateItem.desc.setText("当前 v" + Ui.version(a) + " 已是最新版本");
+                tv.setText("已是最新");
+                tv.setTextColor(Ui.TAG_INK);
+                tv.setTypeface(Ui.BOLD);
+                break;
+            case AVAILABLE: {
+                String ver = availableUpdate != null && !availableUpdate.versionName.isEmpty()
+                    ? "v" + availableUpdate.versionName : "新版本";
+                String size = availableUpdate != null && availableUpdate.sizeBytes > 0
+                    ? " · " + formatSize(availableUpdate.sizeBytes) : "";
+                updateItem.desc.setText("发现 " + ver + size + " · 校验 SHA-256 后安装");
+                tv.setText("一键升级");
+                tv.setTextColor(Ui.TAG_INK);
+                tv.setTypeface(Ui.BOLD);
+                break;
+            }
+            case DOWNLOADING: {
+                String ver = availableUpdate != null && !availableUpdate.versionName.isEmpty()
+                    ? "v" + availableUpdate.versionName : "新版本";
+                updateItem.desc.setText("正在下载 " + ver + " · 点此取消");
+                tv.setText(downloadPercent > 0 ? downloadPercent + "%" : "下载中…");
+                tv.setTextColor(Ui.INK);
+                tv.setTypeface(Ui.BOLD);
+                break;
+            }
+            case NEED_PERM:
+                updateItem.desc.setText("安装包已校验通过，请允许「安装未知应用」");
+                tv.setText("去授权");
+                tv.setTextColor(Ui.WARN);
+                tv.setTypeface(Ui.BOLD);
+                break;
+            case ERROR:
+                updateItem.desc.setText(lastErrorMsg.isEmpty() ? "检查失败 · 点此用浏览器打开" : lastErrorMsg);
+                tv.setText("查看");
+                tv.setTextColor(Ui.WARN);
+                tv.setTypeface(Ui.BOLD);
+                break;
+            default:
+                updateItem.desc.setText("当前 v" + Ui.version(a) + " · 仅检查更新时联网");
+                tv.setText("检查");
+                tv.setTextColor(Ui.INK_2);
+                tv.setTypeface(null);
+                break;
+        }
+    }
+
+    private static String formatSize(long bytes) {
+        if (bytes < 1024L * 1024L) {
+            return Math.max(1L, bytes / 1024L) + " KB";
+        }
+        return String.format(Locale.US, "%.1f MB", bytes / (1024.0 * 1024.0));
+    }
+
     private void bindTable() {
         table.removeAllViews();
-        table.addView(ui.kv("网络权限", "无", 34, "没申请网络权限，数据传不出去。", Ui.FIELD_ON));
+        table.addView(ui.kv("网络权限", "仅更新时联网", 22,
+            "日常跳广告完全离线，无障碍服务绝不联网；仅检查更新与下载新版安装包时连接 GitHub，不上传任何本机数据。", Ui.FIELD_ON));
         if (scope.all()) {
             table.addView(ui.kv("生效范围", "全部应用", 20,
                 "除受保护的应用外都会识别；可以在「生效范围」里单独关掉某个应用。", 0));
@@ -104,5 +343,24 @@ final class AboutPage extends PageActivity.Page {
             }).show();
     }
 
-    @Override void onResume() { bindTable(); }
+    @Override
+    void onResume() {
+        bindTable();
+        if (pendingInstallApk != null && AppUpdater.canInstallPackages(a)) {
+            File f = pendingInstallApk;
+            pendingInstallApk = null;
+            updateState = availableUpdate != null ? UpdateState.AVAILABLE : UpdateState.IDLE;
+            renderUpdateRow();
+            AppUpdater.installApk(a, f);
+        }
+    }
+
+    @Override
+    void onDestroy() {
+        destroyed = true;
+        if (downloadHandle != null) {
+            downloadHandle.cancel();
+            downloadHandle = null;
+        }
+    }
 }

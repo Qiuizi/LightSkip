@@ -3,8 +3,11 @@ package app.qi.qingtiao;
 import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.AccessibilityServiceInfo;
 import android.accessibilityservice.GestureDescription;
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
@@ -41,6 +44,23 @@ public final class SkipService extends AccessibilityService
     private static final long BURST_THROTTLE_MS = 25L;
     private static final long BURST_POLL_MS = 50L;
     private int burstGeneration = -1;
+    private volatile boolean screenOff = false;
+    private boolean screenReceiverRegistered = false;
+    private final BroadcastReceiver screenReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (intent == null) return;
+            String action = intent.getAction();
+            if (Intent.ACTION_SCREEN_OFF.equals(action)) {
+                screenOff = true;
+                stopBurstPoll();
+                session.reset();
+            } else if (Intent.ACTION_SCREEN_ON.equals(action) || Intent.ACTION_USER_PRESENT.equals(action)) {
+                screenOff = false;
+                session.reset();
+            }
+        }
+    };
     private final Runnable burstPoll = new Runnable() {
         @Override public void run() { onBurstPoll(); }
     };
@@ -82,6 +102,14 @@ public final class SkipService extends AccessibilityService
         catalog.ensureLoaded();
         recorder.addListener(this);
         scope.p.registerOnSharedPreferenceChangeListener(this);
+        if (!screenReceiverRegistered) {
+            IntentFilter f = new IntentFilter();
+            f.addAction(Intent.ACTION_SCREEN_OFF);
+            f.addAction(Intent.ACTION_SCREEN_ON);
+            f.addAction(Intent.ACTION_USER_PRESENT);
+            registerReceiver(screenReceiver, f);
+            screenReceiverRegistered = true;
+        }
         applyScope();
     }
 
@@ -223,7 +251,7 @@ public final class SkipService extends AccessibilityService
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
-        if (scope == null || hitLog == null || event == null) return;
+        if (screenOff || scope == null || hitLog == null || event == null) return;
         String pkg = string(event.getPackageName());
         if (pkg.isEmpty() || RuleBook.isProtected(pkg)) return;
         long now = SystemClock.uptimeMillis();
@@ -282,7 +310,10 @@ public final class SkipService extends AccessibilityService
     }
 
     private void onBurstPoll() {
-        if (scope == null || hitLog == null) return;
+        if (screenOff || scope == null || hitLog == null) {
+            stopBurstPoll();
+            return;
+        }
         long now = SystemClock.uptimeMillis();
         if (session.generation != burstGeneration || session.used || session.pkg.isEmpty() || session.window < 0) {
             stopBurstPoll();
@@ -564,6 +595,65 @@ public final class SkipService extends AccessibilityService
         return false;
     }
 
+    private static final String[] FAST_TEXT_QUERIES = {"跳过", "Skip"};
+
+    private Candidate findTextFast(AccessibilityNodeInfo root, RuleBook.Entry r,
+                                   int screenW, int screenH, long windowAgeMs) {
+        AccessibilityNodeInfo bestNode = null;
+        NodeFeatures bestFeatures = null;
+        SkipScorer.Score bestScore = null;
+        for (String query : FAST_TEXT_QUERIES) {
+            List<AccessibilityNodeInfo> found;
+            try {
+                found = root.findAccessibilityNodeInfosByText(query);
+            } catch (RuntimeException ignored) {
+                continue;
+            }
+            if (found == null || found.isEmpty()) continue;
+            for (AccessibilityNodeInfo n : found) {
+                if (n == null) continue;
+                try {
+                    if (!n.isVisibleToUser()) continue;
+                    if (!r.pkg.equals(string(n.getPackageName()))) continue;
+                    String text = string(n.getText()).trim();
+                    String desc = string(n.getContentDescription()).trim();
+                    if (!RuleBook.skipText(text) && !RuleBook.skipText(desc)) continue;
+                    Rect rect = new Rect();
+                    n.getBoundsInScreen(rect);
+                    if (rect.right <= rect.left || rect.bottom <= rect.top) continue;
+                    if (hasScrollableAncestor(n)) continue;
+                    String id = RuleBook.localId(r, string(n.getViewIdResourceName()));
+                    NodeFeatures f = new NodeFeatures();
+                    f.text = text;
+                    f.desc = desc;
+                    f.viewId = id;
+                    f.className = string(n.getClassName());
+                    f.ruleIdHit = !id.isEmpty() && r.ids.contains(id);
+                    f.ruleVerified = r.verified;
+                    f.boundsInScreen = new int[]{rect.left, rect.top, rect.right, rect.bottom};
+                    f.screenW = screenW;
+                    f.screenH = screenH;
+                    f.windowAgeMs = windowAgeMs;
+                    f.activityClass = session.screen;
+                    f.isDedicatedActivity = session.dedicated;
+                    f.windowHasAdMarker = false;
+                    f.hasScrollableAncestor = false;
+                    SkipScorer.Score s = SkipScorer.score(f);
+                    if (s.total >= SkipScorer.CLICK_THRESHOLD && (bestScore == null || s.total > bestScore.total)) {
+                        if (bestNode != null) bestNode.recycle();
+                        bestNode = AccessibilityNodeInfo.obtain(n);
+                        bestFeatures = f;
+                        bestScore = s;
+                    }
+                } finally {
+                    n.recycle();
+                }
+            }
+        }
+        if (bestNode == null) return null;
+        return new Candidate(bestNode, bestFeatures, bestScore);
+    }
+
     private Candidate findTarget(RuleBook.Entry r, int window, long now) {
         AccessibilityNodeInfo root = getRootInActiveWindow();
         if (root == null) return null;
@@ -580,6 +670,11 @@ public final class SkipService extends AccessibilityService
                 root.recycle();
                 return fast;
             }
+        }
+        Candidate textFast = findTextFast(root, r, fastScreen[0], fastScreen[1], fastAgeMs);
+        if (textFast != null) {
+            root.recycle();
+            return textFast;
         }
 
         ArrayDeque<AccessibilityNodeInfo> queue = new ArrayDeque<AccessibilityNodeInfo>();
@@ -794,6 +889,10 @@ public final class SkipService extends AccessibilityService
 
     @Override
     public void onDestroy() {
+        if (screenReceiverRegistered) {
+            try { unregisterReceiver(screenReceiver); } catch (IllegalArgumentException ignored) {}
+            screenReceiverRegistered = false;
+        }
         if (scope != null) scope.p.unregisterOnSharedPreferenceChangeListener(this);
         main.removeCallbacksAndMessages(null);
         recorder.removeListener(this);

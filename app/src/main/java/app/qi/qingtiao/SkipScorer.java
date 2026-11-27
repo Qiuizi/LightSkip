@@ -41,6 +41,9 @@ final class SkipScorer {
         List<String> d = new ArrayList<String>();
         String text = nz(f.text).trim();
         String desc = nz(f.desc).trim();
+        if (RuleBook.isExcludedSkipText(text) || RuleBook.isExcludedSkipText(desc)) {
+            return new Score(0, Arrays.asList("excluded_text:0"));
+        }
         String combined = (text + " " + desc).toLowerCase(Locale.ROOT);
         boolean skipHit = RuleBook.skipText(text) || RuleBook.skipText(desc);
         if (skipHit) {
