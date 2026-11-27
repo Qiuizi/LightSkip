@@ -1,0 +1,4 @@
+<resources>
+    <string name="service_description">在你启用的应用中识别开屏广告并自动点击跳过按钮，所有规则与判定均在本地完成，不上传任何界面数据。</string>
+    <item type="id" name="demo_skip"/>
+</resources>

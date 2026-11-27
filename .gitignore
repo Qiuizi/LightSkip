@@ -1,0 +1,22 @@
+# Build & local tools
+.baseline/
+.gradle/
+.tools/
+build/
+app/build/
+local.properties
+*.apk
+*.aab
+*.zip
+
+# IDE
+.idea/
+*.iml
+.DS_Store
+
+# Local QA & device dumps
+*.jsonl
+*.log
+debug_*.txt
+scope.xml
+ui*.xml
