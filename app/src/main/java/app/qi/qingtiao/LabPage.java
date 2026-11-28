@@ -15,10 +15,10 @@ final class LabPage extends PageActivity.Page {
 
     @Override
     View build() {
-        LinearLayout body = scrollPage("导入朋友分享的规则、查最近跳过记录，或用自带测试页体验一下。");
+        LinearLayout body = scrollPage("导入自定义规则、查看最近跳过记录，或用内置测试页体验");
         LinearLayout g1 = ui.addGroup(body, "规则与记录");
         importCount = ui.value("0 条");
-        g1.addView(ui.item(Glyph.DOWNLOAD, "导入规则", "粘贴朋友分享的规则，免重装扩展", importCount,
+        g1.addView(ui.item(Glyph.DOWNLOAD, "导入规则", "粘贴 JSON 规则，免重装扩展", importCount,
             go(PageActivity.IMPORT)).row);
         g1.addView(ui.item(Glyph.LIST, "最近跳过记录", "仅留在本机，最多保存最近 500 条", ui.value("查看"),
             go(PageActivity.HITS)).row);

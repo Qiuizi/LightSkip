@@ -70,7 +70,7 @@ final class RecordPage extends PageActivity.Page implements SkipRecorder.Listene
 
     @Override
     View build() {
-        LinearLayout body = scrollPage("不用悬浮窗，也不加新权限。打开目标应用等 5 秒，回来选一下跳过按钮。");
+        LinearLayout body = scrollPage("不用悬浮窗，也不加新权限，打开目标应用等 5 秒回来勾选跳过按钮");
 
         // 第 1 步：选应用
         LinearLayout step1 = ui.frame(true);
@@ -482,7 +482,7 @@ final class RecordPage extends PageActivity.Page implements SkipRecorder.Listene
             TextView t = ui.bold("还没有录制过的规则", 15, Ui.INK);
             t.setGravity(Gravity.CENTER);
             empty.addView(t);
-            TextView d = ui.text("选上面的应用点一下开始就能录。", 13, Ui.INK_2);
+            TextView d = ui.text("选上面的应用点一下开始就能录", 13, Ui.INK_2);
             d.setGravity(Gravity.CENTER);
             ui.add(empty, d, 4);
             savedGroup.addView(empty);

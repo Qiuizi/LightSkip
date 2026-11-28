@@ -26,7 +26,7 @@ final class BuiltinPage extends PageActivity.Page implements AppCatalog.Listener
 
     @Override
     View build() {
-        LinearLayout body = scrollPage("当前的识别方式。先查专属规则，没有规则时才认字样。");
+        LinearLayout body = scrollPage("先查专属规则，没有规则时再按字样识别");
         SpannableStringBuilder d1 = new SpannableStringBuilder("例如哔哩哔哩认 ");
         mono(d1, "count_down");
         d1.append("、");

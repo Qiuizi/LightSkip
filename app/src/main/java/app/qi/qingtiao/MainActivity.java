@@ -109,7 +109,7 @@ public final class MainActivity extends Activity implements AppCatalog.Listener 
         head.addView(ui.text("v" + Ui.version(this), 12, Ui.INK_72));
         field.addView(head);
 
-        statusTitle = ui.bold("正在替你跳。", 44, Ui.INK);
+        statusTitle = ui.bold("正在替你跳", 44, Ui.INK);
         statusTitle.setLineSpacing(0, 1.12f);
         statusTitle.setLetterSpacing(-0.02f);
         ui.add(field, statusTitle, 26);
@@ -138,7 +138,7 @@ public final class MainActivity extends Activity implements AppCatalog.Listener 
         Ui.appendLink(note, "允许受限设置", Ui.INK, new Runnable() {
             @Override public void run() { Device.openAppDetails(MainActivity.this); }
         });
-        note.append(" ，再回来开启。");
+        note.append("，再回来开启");
         restrictedNote = ui.text(note, 13, Ui.INK_72);
         Ui.linkify(restrictedNote);
         ui.add(tasks, restrictedNote, 12, 4, 0);
@@ -237,7 +237,7 @@ public final class MainActivity extends Activity implements AppCatalog.Listener 
     private void bindTrustScope(boolean all, int picked) {
         SpannableStringBuilder b = new SpannableStringBuilder();
         if (all) {
-            b.append(Ui.boldThen("当前为全部应用。", "建议 ", Ui.WARN));
+            b.append(Ui.boldThen("当前为全部应用，", "建议 ", Ui.WARN));
             Ui.appendLink(b, "改回仅勾选", Ui.WARN, new Runnable() {
                 @Override public void run() {
                     scope.mode(false);
@@ -248,7 +248,7 @@ public final class MainActivity extends Activity implements AppCatalog.Listener 
             trustScope.setWarn(true);
             ((Glyph) trustScope.icon.getDrawable()).setColor(Ui.WARN);
         } else if (picked == 0) {
-            b.append(Ui.boldThen("还没勾选应用。", "", Ui.WARN));
+            b.append(Ui.boldThen("还没勾选应用，", "", Ui.WARN));
             Ui.appendLink(b, "去勾选", Ui.WARN, new Runnable() {
                 @Override public void run() { Device.page(MainActivity.this, PageActivity.SCOPE); }
             });
@@ -507,26 +507,26 @@ public final class MainActivity extends Activity implements AppCatalog.Listener 
 
         switch (s) {
             case MISSING:
-                statusTitle.setText("还不能跳。");
-                statusSub.setText("开启无障碍和保活即可。");
+                statusTitle.setText("还不能跳");
+                statusSub.setText("开启无障碍和保活即可");
                 break;
             case PARTIAL:
-                statusTitle.setText("正在替你跳。");
+                statusTitle.setText("正在替你跳");
                 statusSub.setText(boldNumber("今天 ", String.valueOf(today), " 次 · 未配保活"));
                 break;
             case READY: {
-                statusTitle.setText("正在替你跳。");
+                statusTitle.setText("正在替你跳");
                 SpannableStringBuilder b = new SpannableStringBuilder("今天 ");
                 boldAppend(b, String.valueOf(today));
                 b.append(" 次，累计约省 ");
                 boldAppend(b, Ui.saved(scope.savedSeconds()));
-                b.append("。");
+                // no trailing period
                 statusSub.setText(b);
                 break;
             }
             default:
-                statusTitle.setText("歇着呢。");
-                statusSub.setText("推回拨杆即恢复。");
+                statusTitle.setText("歇着呢");
+                statusSub.setText("推回拨杆即恢复");
                 break;
         }
 

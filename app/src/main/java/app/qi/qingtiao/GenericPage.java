@@ -16,7 +16,7 @@ final class GenericPage extends PageActivity.Page {
 
     @Override
     View build() {
-        LinearLayout body = scrollPage("给没有专属规则的应用用。");
+        LinearLayout body = scrollPage("给没有专属规则的应用使用");
         LinearLayout hero = ui.frame(true);
         hero.setBackground(ui.shape(Ui.SOON, 22));
         ui.pad(hero, 16, 16, 16, 16);
@@ -51,8 +51,8 @@ final class GenericPage extends PageActivity.Page {
         ui.add(body, hero, 18, 16, 0);
 
         LinearLayout grp = ui.addGroup(body, null);
-        grp.addView(ui.item(-1, "位置", "右上角或右下角的小按钮。", null, null).row);
-        grp.addView(ui.item(-1, "倒计时", "按钮里的数字在 1–5 之间，并且每秒都在变。", null, null).row);
+        grp.addView(ui.item(-1, "位置", "右上角或右下角的小按钮", null, null).row);
+        grp.addView(ui.item(-1, "倒计时", "按钮里的数字在 1–5 之间，并且每秒都在变", null, null).row);
         grp.addView(ui.item(-1, "只在勾选的应用里", "和现在一样，受保护的应用永远排除。上线前会先用测试页反复测。", null, null).row);
 
         TextView off = ui.primary("启用通用识别 · 即将推出", null);

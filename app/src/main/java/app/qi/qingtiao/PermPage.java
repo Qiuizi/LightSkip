@@ -62,7 +62,7 @@ final class PermPage extends PageActivity.Page {
             }
         });
         ui.add(body, recheck, 18, 16, 0);
-        footnote(body, "建议在最近任务里锁定「轻跳」，切后台更稳。", 12);
+        footnote(body, "建议在最近任务里锁定「轻跳」，切后台更稳", 12);
         return root(body);
     }
 

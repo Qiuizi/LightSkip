@@ -34,7 +34,7 @@ final class ImportPage extends PageActivity.Page {
     View build() {
         a.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
             | WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN);
-        LinearLayout body = scrollPage("粘贴朋友发来的 JSON，不用重装就能支持新应用。");
+        LinearLayout body = scrollPage("粘贴 JSON 规则，不用重装就能支持新应用");
 
         LinearLayout warn = ui.frame(false);
         warn.setGravity(Gravity.TOP);
@@ -155,7 +155,7 @@ final class ImportPage extends PageActivity.Page {
             TextView t = ui.bold("还没有导入的规则", 15, Ui.INK);
             t.setGravity(Gravity.CENTER);
             empty.addView(t);
-            TextView d = ui.text("保存后会出现在这里。", 13, Ui.INK_2);
+            TextView d = ui.text("保存后会出现在这里", 13, Ui.INK_2);
             d.setGravity(Gravity.CENTER);
             ui.add(empty, d, 4);
             listGroup.addView(empty);

@@ -109,7 +109,7 @@ final class ScopePage extends PageActivity.Page implements AppCatalog.Listener {
             @Override public void onClick(View v) {
                 if (all) return;
                 ui.confirm("切换到「全部应用」？",
-                    "轻跳会在所有应用里找「跳过」按钮（受保护的除外）。给朋友用，建议保持「仅勾选」。",
+                    "轻跳会在所有应用里找「跳过」按钮（受保护的应用除外）",
                     "切换", false, new Runnable() {
                         @Override public void run() { setMode(true); }
                     }).show();
@@ -118,8 +118,8 @@ final class ScopePage extends PageActivity.Page implements AppCatalog.Listener {
         ui.add(h, cardAll.card, 10, 16, 0);
 
         SpannableStringBuilder w = new SpannableStringBuilder();
-        w.append(Ui.boldThen("现在对全部应用生效。", "朋友会更放心「仅勾选」。", Ui.WARN));
-        w.append(" ");
+        w.append(Ui.boldThen("当前对全部应用生效，", "建议 ", Ui.WARN));
+        
         Ui.appendLink(w, "改回仅勾选", Ui.WARN, new Runnable() {
             @Override public void run() { setMode(false); }
         });
@@ -206,7 +206,7 @@ final class ScopePage extends PageActivity.Page implements AppCatalog.Listener {
         lockedBox = ui.frame(true);
         lockedGroup = ui.addGroup(lockedBox, "永不点击 · 不能打开");
         f.addView(lockedBox);
-        footnote(f, "列表里只有你装的应用；系统应用、桌面和输入法不会出现。", 14);
+        footnote(f, "列表里只显示已安装应用，系统应用、桌面和输入法不会出现", 14);
         return f;
     }
 
@@ -259,8 +259,8 @@ final class ScopePage extends PageActivity.Page implements AppCatalog.Listener {
             emptyText.setVisibility(View.VISIBLE);
         } else if (rows.isEmpty()) {
             String q = query.trim();
-            emptyText.setText(q.isEmpty() ? "还没找到可以打开的应用。"
-                : "没找到「" + q + "」。\n只能搜到你自己装的应用。");
+            emptyText.setText(q.isEmpty() ? "还没找到可开启的应用"
+                : "没找到「" + q + "」\n仅支持搜索已安装应用");
             emptyText.setVisibility(View.VISIBLE);
         } else {
             emptyText.setVisibility(View.GONE);

@@ -30,7 +30,7 @@ final class AboutPage extends PageActivity.Page {
 
     @Override
     View build() {
-        LinearLayout body = scrollPage("给朋友看：轻跳在你手机上做什么、不做什么。");
+        LinearLayout body = scrollPage("轻跳在你手机上做什么、不做什么");
         View head = body.getChildAt(0);
         head.setBackground(ui.fieldBg(Ui.FIELD_SOFT));
         ui.pad(head, 20, 4, 20, 26);
@@ -52,10 +52,10 @@ final class AboutPage extends PageActivity.Page {
         table.setShowDividers(LinearLayout.SHOW_DIVIDER_MIDDLE);
         card.addView(table);
         ui.add(body, card, 16, 16, 0);
-        footnote(body, "*开屏广告一般 3–5 秒，这里取 3 秒，宁可少算。", 10);
+        footnote(body, "*开屏广告一般 3–5 秒，这里按 3 秒估算", 10);
 
         LinearLayout g = ui.addGroup(body, "关于与更新");
-        g.addView(ui.item(Glyph.PHONE, "当前版本", "自用和朋友小范围使用，不上架",
+        g.addView(ui.item(Glyph.PHONE, "当前版本", "纯原生轻量开屏跳过工具",
             ui.value("v" + Ui.version(a)), null).row);
 
         updateItem = ui.item(Glyph.DOWNLOAD, "检查更新", "当前 v" + Ui.version(a) + " · 仅更新时联网",
